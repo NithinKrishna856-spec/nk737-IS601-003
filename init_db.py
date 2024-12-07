@@ -7,7 +7,7 @@ def initializing_db():
         os.remove(db_file)
         print(f"Deleted existing database file: {db_file}")
         
-    conn = sqlite3.connect("db_file")
+    conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
 
     # here we create the tables
