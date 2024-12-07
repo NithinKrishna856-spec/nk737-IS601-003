@@ -18,6 +18,10 @@ def create_customer(customer: Customerr):
         cursor.execute("Insert into customers(name, phone) VALUES(?, ?)", (customer.name, customer.phone))
         con.commit()
         return {"id": cursor.lastrowid, "message": "Created customer"}
+    except sqlite3.DatabaseError as e:
+        return {"error": f"Database error: {str(e)}"}
+    except Exception as e:
+        return {"error": f"An error occurred: {str(e)}"}
     
 
 @app.get("/customers/{id}")
@@ -127,6 +131,82 @@ def update_order(id: int, order: dict):
             cursor.execute("Insert into OrderDetails(order_id, item_id) values(?, ?)", (id, item_id))
         con.commit()
         return {"message": "Order updated"}
+    
+# Limited list views
+
+@app.get("/customers")
+def list_customers(limit: int = 10, name: str = None, phone: str = None):
+    with connect_database() as con:
+        cursor = con.cursor()
+        query = "SELECT * FROM Customers"
+        conditions = []
+        params = []
+
+        if name:
+            conditions.append("name LIKE ?")
+            params.append(f"%{name}%")
+        if phone:
+            conditions.append("phone = ?")
+            params.append(phone)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " LIMIT ?"
+        params.append(limit)
+
+        customers = cursor.execute(query, params).fetchall()
+        return {"customers": [dict(customer) for customer in customers]}
+    
+@app.get("/items")
+def list_items(limit: int = 10, name: str = None, min_price: float = None, max_price: float = None):
+    with connect_database() as con:
+        cursor = con.cursor()
+        query = "SELECT * FROM Items"
+        conditions = []
+        params = []
+
+        if name:
+            conditions.append("name LIKE ?")
+            params.append(f"%{name}%")
+        if min_price is not None:
+            conditions.append("price >= ?")
+            params.append(min_price)
+        if max_price is not None:
+            conditions.append("price <= ?")
+            params.append(max_price)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " LIMIT ?"
+        params.append(limit)
+
+        items = cursor.execute(query, params).fetchall()
+        return {"items": [dict(item) for item in items]}
+
+@app.get("/orders")
+def list_orders(limit: int = 10, customer_id: int = None, start_time: int = None, end_time: int = None):
+    with connect_database() as con:
+        cursor = con.cursor()
+        query = "SELECT * FROM Orders"
+        conditions = []
+        params = []
+
+        if customer_id:
+            conditions.append("customer_id = ?")
+            params.append(customer_id)
+        if start_time is not None:
+            conditions.append("timestamp >= ?")
+            params.append(start_time)
+        if end_time is not None:
+            conditions.append("timestamp <= ?")
+            params.append(end_time)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " LIMIT ?"
+        params.append(limit)
+
+        orders = cursor.execute(query, params).fetchall()
+        return {"orders": [dict(order) for order in orders]}
+
+
 
 
 
