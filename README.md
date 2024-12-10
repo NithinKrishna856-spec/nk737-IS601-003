@@ -42,8 +42,8 @@ The database (`db.sqlite`) is initialized using SQLite and stores data in the fo
    python init_db.py
 
 5. Start the FastAPI app:
-   uvicorn main:app --reload
-   The API will be available at `http://localhost:8000`.
+    python -m uvicorn main:app --reload
+   The API will be available at `http://localhost:8000/docs`.
 
 ### API Endpoints
 

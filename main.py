@@ -1,37 +1,63 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request
 import sqlite3
+from pydantic import BaseModel
+
 app = FastAPI()
 
+import os
+
 def connect_database():
-    return sqlite3.connect("db.sqlite", factory=sqlite3.Row)
-class Customerr(BaseModel):
+    db_path = os.path.abspath("db.sqlite")
+    print(f"Connecting to database at: {db_path}")
+    con = sqlite3.connect(db_path)
+    con.execute("PRAGMA foreign_keys = OFF")  
+    con.row_factory = sqlite3.Row  
+    return con
+
+
+
+# Pydantic model for Customer
+class Customer(BaseModel):
     name: str
     phone: str
 
-# CRUD operations for customers 
-
-@app.post("/customers", status_code = 201)
-def create_customer(customer: Customerr):
-    with connect_database() as con:
-        cursor = con.cursor()
-        cursor.execute("Insert into customers(name, phone) VALUES(?, ?)", (customer.name, customer.phone))
-        con.commit()
-        return {"id": cursor.lastrowid, "message": "Created customer"}
+@app.post("/customers")
+def create_customer(customer: Customer):
+    try:
+        with connect_database() as con:
+            cursor = con.cursor()
+            cursor.execute("Insert into customers(name, phone) VALUES(?, ?)", (customer.name, customer.phone))
+            con.commit()
+            return {"id": cursor.lastrowid, "message": "Created customer"}
     except sqlite3.DatabaseError as e:
         return {"error": f"Database error: {str(e)}"}
     except Exception as e:
         return {"error": f"An error occurred: {str(e)}"}
-    
 
-@app.get("/customers/{id}")
-def retrieve_customer(id: int):
+
+@app.get("/customers")
+def list_customers(limit: int = 10, name: str = None, phone: str = None):
     with connect_database() as con:
         cursor = con.cursor()
-        customer = cursor.execute("Select * from customers where id = ?", (id,)).fetchone()    
-        if customer is None:
-            return{"error": "No Customer found"}
-        return dict(customer)
+        query = "SELECT * FROM Customers"
+        conditions = []
+        params = []
+
+        if name:
+            conditions.append("name LIKE ?")
+            params.append(f"%{name}%")
+        if phone:
+            conditions.append("phone = ?")
+            params.append(phone)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " LIMIT ?"
+        params.append(limit)
+
+        # Fetch the customers again to ensure the newly inserted customer is included
+        customers = cursor.execute(query, params).fetchall()
+        return {"customers": [dict(customer) for customer in customers]}
+
 
 
 @app.delete("/customers/{id}")
@@ -40,18 +66,17 @@ def remove_customer(id: int):
         cursor = con.cursor()
         cursor.execute("Delete from customers where id = ?", (id,))
         con.commit()
-        return{"message": "Deleted Customer"}
+        return {"message": "Deleted Customer"}
     
 @app.put("/customers/{id}")
-def update_customer(id: int, customer: Customerr):
+def update_customer(id: int, customer: Customer):
     with connect_database() as con:
         cursor = con.cursor()
         cursor.execute(
-        "Update customers set name = ?, phone = ? where id = ?", (customer.name, customer.phone, id))
+            "Update customers set name = ?, phone = ? where id = ?", (customer.name, customer.phone, id))
         con.commit()
         return {"message": "Customer updated"}
 
-    
 # CRUD operations on items
 
 @app.post("/items")
@@ -87,9 +112,7 @@ def update_item(id: int, item: dict):
         con.commit()
         return {"message": "Item updated"}
 
-
-
-#CRUD operations on orders
+# CRUD operations on orders
 
 @app.post("/orders")
 def create_order(order: dict):
@@ -100,7 +123,7 @@ def create_order(order: dict):
         for item_id in order["item_ids"]:
             cursor.execute("Insert into OrderDetails (order_id, item_id) values(?, ?)", (order_id, item_id))
         con.commit()
-        return{"id": order_id, "message":"Created Order"}
+        return {"id": order_id, "message": "Created Order"}
 
 @app.get("/orders/{id}")
 def retrieve_order(id: int):
@@ -111,7 +134,7 @@ def retrieve_order(id: int):
             return {"error": "No Order found"}
         items = cursor.execute("Select i.id, i.name, i.price from OrderDetails od join Items i ON od.item_id = i.id WHERE od.order_id = ?", (id,)).fetchall()
         return {"order": dict(order), "items": [dict(item) for item in items]}
-    
+
 @app.delete("/orders/{id}")
 def remove_order(id: int):
     with connect_database() as con:
@@ -131,7 +154,7 @@ def update_order(id: int, order: dict):
             cursor.execute("Insert into OrderDetails(order_id, item_id) values(?, ?)", (id, item_id))
         con.commit()
         return {"message": "Order updated"}
-    
+
 # Limited list views
 
 @app.get("/customers")
@@ -155,7 +178,7 @@ def list_customers(limit: int = 10, name: str = None, phone: str = None):
 
         customers = cursor.execute(query, params).fetchall()
         return {"customers": [dict(customer) for customer in customers]}
-    
+
 @app.get("/items")
 def list_items(limit: int = 10, name: str = None, min_price: float = None, max_price: float = None):
     with connect_database() as con:
@@ -205,8 +228,3 @@ def list_orders(limit: int = 10, customer_id: int = None, start_time: int = None
 
         orders = cursor.execute(query, params).fetchall()
         return {"orders": [dict(order) for order in orders]}
-
-
-
-
-
