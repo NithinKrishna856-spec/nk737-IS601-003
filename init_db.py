@@ -1,4 +1,4 @@
-import sqlite3
+'''import sqlite3
 import os
 import json
 
@@ -64,3 +64,54 @@ def initializing_db():
 
 if __name__ == "__main__":
     initializing_db()
+'''
+
+
+import sqlite3
+
+# Define the database file path
+DATABASE_FILE = "db.sqlite"
+
+def create_tables():
+    # Connect to the SQLite database
+    with sqlite3.connect(DATABASE_FILE) as con:
+        cursor = con.cursor()
+        
+        # Create customers table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL
+        )''')
+        
+        # Create items table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            price REAL NOT NULL
+        )''')
+        
+        # Create orders table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
+            timestamp TEXT NOT NULL,
+            notes TEXT,
+            FOREIGN KEY (customer_id) REFERENCES customers(id)
+        )''')
+        
+        # Create order details table (relationship between orders and items)
+        cursor.execute('''CREATE TABLE IF NOT EXISTS orderdetails (
+            order_id INTEGER,
+            item_id INTEGER,
+            PRIMARY KEY (order_id, item_id),
+            FOREIGN KEY (order_id) REFERENCES orders(id),
+            FOREIGN KEY (item_id) REFERENCES items(id)
+        )''')
+        
+        # Commit changes and close connection
+        con.commit()
+
+if __name__ == "__main__":
+    create_tables()
+    print(f"Empty database structure created at {DATABASE_FILE}")
